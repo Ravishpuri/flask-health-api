@@ -1,23 +1,30 @@
+# A Deployment manages a set of identical Pods and keeps them running,
+# recreating them if they crash and rolling them out on updates.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  # Name of the Deployment object.
   name: flask-health-api
   labels:
     app: flask-health-api
 spec:
+  # Run 2 Pods for basic availability and load spreading.
   replicas: 2
+  # Tells the Deployment which Pods it owns (must match template labels below).
   selector:
     matchLabels:
       app: flask-health-api
+  # How updates are rolled out.
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: 1          # allow 1 extra Pod above the replica count during a rollout
+      maxUnavailable: 0    # never drop below 2 ready Pods -> zero-downtime updates
+  # Pod template: the spec every replica is created from.
   template:
     metadata:
       labels:
-        app: flask-health-api
+        app: flask-health-api   # must match the selector above and the Service selector
     spec:
       containers:
         - name: flask-health-api
@@ -25,9 +32,11 @@ spec:
           # produced by the pipeline (e.g. 0.0.12.a1b2c3d), shown in the
           # Actions log and on Docker Hub. Versioned tags are immutable.
           image: ravish24/flask-health-api:<IMAGE_VERSION>
+          # Immutable version tags never change, so only pull if not cached.
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 5000
+            - containerPort: 5000   # the port the Flask app listens on
+          # Non-sensitive configuration passed as environment variables.
           env:
             - name: PORT
               value: "5000"
@@ -35,27 +44,33 @@ spec:
               value: "production"
             - name: APP_VERSION
               value: "1.0.0"
+            # Sensitive value injected from a Kubernetes Secret (kept out of git).
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: flask-health-api-secrets
+                  name: flask-health-api-secrets   # created via kubectl create secret
                   key: SECRET_KEY
+          # Readiness probe: is the Pod ready to receive traffic? Until it passes,
+          # the Service sends no traffic to this Pod.
           readinessProbe:
             httpGet:
               path: /health
               port: 5000
-            initialDelaySeconds: 5
-            periodSeconds: 10
+            initialDelaySeconds: 5    # wait 5s after start before first check
+            periodSeconds: 10         # then check every 10s
+          # Liveness probe: is the Pod still healthy? If it fails, kubelet
+          # restarts the container automatically (self-healing).
           livenessProbe:
             httpGet:
               path: /health
               port: 5000
             initialDelaySeconds: 10
             periodSeconds: 10
+          # Resource requests (for scheduling) and limits (hard caps).
           resources:
             requests:
-              cpu: "50m"
+              cpu: "50m"       # 0.05 CPU reserved
               memory: "64Mi"
             limits:
-              cpu: "250m"
-              memory: "128Mi"
+              cpu: "250m"      # throttled above 0.25 CPU
+              memory: "128Mi"  # OOM-killed above 128Mi

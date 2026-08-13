@@ -1,3 +1,5 @@
+# A Service gives the Pods a single, stable network endpoint and load-balances
+# traffic across all Pods that match its selector.
 apiVersion: v1
 kind: Service
 metadata:
@@ -5,11 +7,14 @@ metadata:
   labels:
     app: flask-health-api
 spec:
+  # NodePort exposes the Service on a fixed port of every node, so it can be
+  # reached from your local machine (works with a local cluster).
   type: NodePort
+  # Route traffic to Pods carrying this label (set by the Deployment template).
   selector:
     app: flask-health-api
   ports:
     - name: http
-      port: 80
-      targetPort: 5000
-      nodePort: 30080
+      port: 80           # port the Service is exposed on inside the cluster
+      targetPort: 5000   # container port to forward to (the Flask app)
+      nodePort: 30080    # external port on the node -> http://<node-ip>:30080
