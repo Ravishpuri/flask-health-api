@@ -13,6 +13,7 @@ container that is the container's own loopback, so the published port answered w
 *connection refused* from the host and the health check never passed. The app was not
 crashing — it was simply unreachable. The fix was to bind to `0.0.0.0`.
 
+----------------------------
 **How I debugged it:**
 - Saw the container was `Up` in `docker ps`, yet `curl http://localhost:5000/health` from the host returned *connection refused* — so the process was running but nothing answered on the mapped port.
 - Checked `docker logs` and spotted Flask reporting `Running on http://127.0.0.1:5000` — the giveaway that it was listening on loopback only.
