@@ -31,7 +31,7 @@ spec:
           # Public image pulled from Docker Hub. Set the tag to the version
           # produced by the pipeline (e.g. 0.0.12.a1b2c3d), shown in the
           # Actions log and on Docker Hub. Versioned tags are immutable.
-          image: ravish24/flask-health-api:<IMAGE_VERSION>
+          image: ravish24/flask-health-api:0.0.17.6eb4a0e
           # Immutable version tags never change, so only pull if not cached.
           imagePullPolicy: IfNotPresent
           ports:
