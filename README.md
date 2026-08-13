@@ -19,6 +19,35 @@ crashing — it was simply unreachable. The fix was to bind to `0.0.0.0`.
 - `exec`'d into the container and curled `http://127.0.0.1:5000/health` from inside, which returned **HTTP 200** — confirming the app was healthy but reachable only on the container's own loopback.
 - Re-bound to `0.0.0.0` so Flask listens on all interfaces; the host probe then returned **HTTP 200**.
 
+**Proof — before the fix (`host="127.0.0.1"`):**
+```console
+$ docker compose up --build -d
+$ docker logs flask-health-api | grep -i "running on"
+ * Running on http://127.0.0.1:5000        # listening on loopback only
+
+$ curl http://localhost:5000/health         # from the host -> FAILS
+curl: (56) Recv failure: Connection reset by peer
+
+# health monitor logs the outage every 10s:
+2026-08-13T15:53:20Z | http://localhost:5000/health | HTTP 000 | NOT OK (unreachable)
+2026-08-13T15:53:30Z | http://localhost:5000/health | HTTP 000 | NOT OK (unreachable)
+```
+
+**Proof — after the fix (`host="0.0.0.0"`):**
+```console
+$ docker compose up --build -d
+$ docker logs flask-health-api | grep -i "running on"
+ * Running on all addresses (0.0.0.0)       # now listening on every interface
+ * Running on http://172.18.0.2:5000
+
+$ curl http://localhost:5000/health          # from the host -> WORKS
+{"status":"healthy","version":"1.0.0","uptime_seconds":3.1,"timestamp":"2026-08-13T15:58:10Z"}
+
+# health monitor flips to healthy:
+2026-08-13T15:58:10Z | http://localhost:5000/health | HTTP 200 | OK (healthy)
+2026-08-13T15:58:20Z | http://localhost:5000/health | HTTP 200 | OK (healthy)
+```
+
 ---
 
 ## 2. Links
