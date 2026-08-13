@@ -1,0 +1,20 @@
+# Secrets — never commit real environment files
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+.venv/
+*.egg-info/
+
+# Health monitor output
+health-monitor.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
