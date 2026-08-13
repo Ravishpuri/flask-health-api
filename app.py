@@ -39,4 +39,5 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=PORT)
+    # Bind to 0.0.0.0 so the app is reachable from outside the container.
+    app.run(host="0.0.0.0", port=PORT)
