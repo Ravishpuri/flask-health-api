@@ -1,81 +1,124 @@
+# Workflow name shown in the GitHub "Actions" tab.
 name: CI/CD
 
+# ---------------------------------------------------------------------------
+# When this workflow runs.
+# ---------------------------------------------------------------------------
 on:
+  # Run when commits are pushed to main (this is what triggers the image push).
   push:
     branches: [ main ]
+  # Also run on pull requests targeting main, so tests/scan gate the merge.
   pull_request:
     branches: [ main ]
 
+# ---------------------------------------------------------------------------
+# Variables shared by every job/step in this workflow.
+# ---------------------------------------------------------------------------
 env:
+  # Docker Hub repository name (the part after your username).
   IMAGE_NAME: flask-health-api
-  # Major/minor portion of the image version; patch is generated per build.
+  # Major/minor portion of the image version; the patch part is generated
+  # per build in the "Calculate image version" step below.
   MAJOR_MINOR: "0.0"
 
 jobs:
+  # =========================================================================
+  # JOB 1 — Lint & Test: install deps and run the pytest suite.
+  # =========================================================================
   test:
     name: Lint & Test
+    # GitHub-hosted Linux runner the job executes on.
     runs-on: ubuntu-latest
     steps:
+      # Download the repo source onto the runner.
       - uses: actions/checkout@v4
+      # Install the Python version the app is built/tested against.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # Install runtime + test dependencies (requirements-dev pulls in pytest).
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      # Run the unit tests; a failure here fails the whole workflow.
       - name: Run unit tests
         run: pytest -v
 
+  # =========================================================================
+  # JOB 2 — Security Scan: Trivy scans the repo for known vulnerabilities.
+  # =========================================================================
   security:
     name: Security Scan (Trivy)
     runs-on: ubuntu-latest
+    # Only start after the test job passes.
     needs: test
     steps:
       - uses: actions/checkout@v4
+      # Trivy filesystem scan of the repository (deps, Dockerfile, config).
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@0.24.0
         with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          exit-code: "0"          # report findings but do not fail the build
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
+          scan-type: fs                 # scan files on disk (not a built image)
+          scan-ref: .                   # scan the whole repo
+          format: table                 # human-readable output in the logs
+          exit-code: "0"                # report findings but do NOT fail the build
+          severity: CRITICAL,HIGH       # only surface serious issues
+          ignore-unfixed: true          # skip issues that have no fix available yet
 
+  # =========================================================================
+  # JOB 3 — Build & Push: build the image and push it to Docker Hub.
+  # =========================================================================
   build-and-push:
     name: Build & Push to Docker Hub
     runs-on: ubuntu-latest
+    # Only run after BOTH test and security jobs succeed.
     needs: [ test, security ]
-    # Only push on direct pushes to main, never on pull requests.
+    # Only push on a real push to main — never on pull requests.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
-          # Fetch full git history and tags so the version can be generated.
+          # Fetch full git history (not a shallow clone) so the commit count
+          # used to build the version number below is accurate.
           fetch-depth: 0
-      # Generate a unique image version per build:
+
+      # Build a unique, immutable version string for this build:
       #   <major.minor>.<commit-count>.<short-sha>   e.g. 0.0.123.a1b2c3d
+      # so every push produces a new tag (no reused "latest").
       - name: Calculate image version
         shell: bash
         run: |
+          # If a git tag "v0.0" exists, count commits since it; otherwise
+          # count all commits on the branch.
           if git rev-parse "v${MAJOR_MINOR}" >/dev/null 2>&1; then
             BUILD=$(git rev-list --count "v${MAJOR_MINOR}..HEAD")
           else
             BUILD=$(git rev-list --count HEAD)
           fi
+          # Short commit SHA makes the tag traceable back to the exact code.
           PATCH=$(git rev-parse --short HEAD)
           IMAGE_VERSION="${MAJOR_MINOR}.${BUILD}.${PATCH}"
+          # Export it so later steps can read ${{ env.IMAGE_VERSION }}.
           echo "IMAGE_VERSION=${IMAGE_VERSION}" >> "$GITHUB_ENV"
           echo "Generated version: ${IMAGE_VERSION}"
+
+      # Set up Buildx, the builder backend used by build-push-action.
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      # Authenticate to Docker Hub using repository secrets (never hardcoded).
+      # Configure these under: Settings > Secrets and variables > Actions.
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKER_USERNAME }}   # your Docker Hub username
+          password: ${{ secrets.DOCKER_PASSWORD }}   # a Docker Hub access token
+
+      # Build the image from the Dockerfile and push the versioned tag.
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          push: true
+          context: .    # build context = repo root (where the Dockerfile is)
+          push: true    # push the built image to Docker Hub
+          # Final tag, e.g. ravish24/flask-health-api:0.0.123.a1b2c3d
           tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
