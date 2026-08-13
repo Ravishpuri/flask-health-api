@@ -114,18 +114,22 @@ kubectl apply -f k8s/service.yaml
 kubectl rollout status deployment/flask-health-api
 kubectl get pods,svc
 
-# Access the service (NodePort 30080).
-curl http://localhost:30080/health
-# ...or port-forward if NodePort is not exposed on your host:
-kubectl port-forward svc/flask-health-api 8080:80
-curl http://localhost:8080/health
+# Access the service. Port-forward maps local 5000 -> Service 80 -> container 5000,
+# so the endpoint is http://localhost:5000 — the same as compose and the
+# monitor.sh default. (Works from anywhere kubectl works; no node IP needed.)
+kubectl port-forward svc/flask-health-api 5000:80
+curl http://localhost:5000/health
+
+# ...or, if the node IP is reachable from your machine, hit the NodePort directly:
+curl http://<node-ip>:30080/health
 ```
 
 ### Health monitoring
 ```bash
 chmod +x monitor.sh
-# Point it at whichever endpoint is live (compose or Kubernetes).
-HEALTH_URL=http://localhost:5000/health ./monitor.sh
+# Endpoint defaults to http://localhost:5000/health, which matches both the
+# compose run and the `kubectl port-forward svc/flask-health-api 5000:80` above.
+./monitor.sh
 ```
 The script polls `/health` every 10 seconds and appends `timestamp | url | HTTP <code>`
 to `health-monitor.log`. Docker Compose also runs a **native** healthcheck (visible in
