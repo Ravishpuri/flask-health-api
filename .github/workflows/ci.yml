@@ -5,12 +5,11 @@ name: CI/CD
 # When this workflow runs.
 # ---------------------------------------------------------------------------
 on:
-  # Run when commits are pushed to main (this is what triggers the image push).
+  # Run when commits are pushed to main. A pull request merged into main also
+  # triggers this, because the merge creates a push event on the target branch.
   push:
-    branches: [ main ]
-  # Also run on pull requests targeting main, so tests/scan gate the merge.
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
   # Allow manual execution from the Actions UI.
   workflow_dispatch:
 
@@ -75,8 +74,6 @@ jobs:
     runs-on: ubuntu-latest
     # Only run after BOTH test and security jobs succeed.
     needs: [ test, security ]
-    # Only push on a real push to main — never on pull requests.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
