@@ -11,6 +11,8 @@ on:
   # Also run on pull requests targeting main, so tests/scan gate the merge.
   pull_request:
     branches: [ main ]
+  # Allow manual execution from the Actions UI.
+  workflow_dispatch:
 
 # ---------------------------------------------------------------------------
 # Variables shared by every job/step in this workflow.
