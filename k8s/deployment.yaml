@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-health-api
+  labels:
+    app: flask-health-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flask-health-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: flask-health-api
+    spec:
+      containers:
+        - name: flask-health-api
+          # Public image pulled from Docker Hub. Set the tag to the version
+          # produced by the pipeline (e.g. 0.0.12.a1b2c3d), shown in the
+          # Actions log and on Docker Hub. Versioned tags are immutable.
+          image: ravish24/flask-health-api:<IMAGE_VERSION>
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          env:
+            - name: PORT
+              value: "5000"
+            - name: APP_ENV
+              value: "production"
+            - name: APP_VERSION
+              value: "1.0.0"
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flask-health-api-secrets
+                  key: SECRET_KEY
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"
