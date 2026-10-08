@@ -158,13 +158,3 @@ because GitHub's cloud runners cannot reach a cluster running on your local mach
 
 **Container hardening.** The image uses `python:3.12-slim`, runs as a non-root user,
 and defines a `HEALTHCHECK`.
-
----
-
-## 5. Live Demo Video Walkthrough
-
-- **Video link:** `<VIDEO_URL>`
-
-Covers: the app running locally passing unit + health tests, the GitHub Actions pipeline
-building and pushing to Docker Hub, and a walkthrough of the code changes, Dockerfile,
-and pipeline logic.
